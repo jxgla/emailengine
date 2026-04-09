@@ -1,0 +1,6 @@
+services:
+    emailengine:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        image: emailengine-local:latest
