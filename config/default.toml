@@ -1,4 +1,6 @@
 
+preparedLicense = "RUUtQ1RGLUxUOmVtYWlsZW5naW5lOmxvY2FsLWxhYjpmb3JldmVy" # local CTF lifetime license
+
 [workers]
 imap = 4
 webhooks = 1
