@@ -305,6 +305,66 @@ export class EmailEngineClient {
         }
     }
 
+    async extractVerificationCode() {
+        const button =
+            typeof document !== 'undefined' && this.container
+                ? this.container.querySelector('[data-action="extract-verification"]')
+                : null;
+        const originalText = button ? button.textContent : 'Extract Code';
+
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Extracting...';
+        }
+
+        try {
+            const result = await this.apiRequest('GET', `/v1/account/${this.account}/verification-code`);
+            const preferredFolder =
+                result.selectedSlot === 'junk'
+                    ? this.folders.find(folder => folder.specialUse && folder.specialUse.includes('\\Junk'))
+                    : this.folders.find(folder => folder.specialUse && folder.specialUse.includes('\\Inbox'));
+            const targetPath = (preferredFolder && preferredFolder.path) || result.path;
+            const targetFolderName = (preferredFolder && (preferredFolder.name || preferredFolder.path)) || result.folderName || result.path;
+
+            try {
+                if (targetPath) {
+                    await this.loadMessages(targetPath);
+                }
+
+                if (result.messageId) {
+                    await this.loadMessage(result.messageId);
+                }
+            } catch (navigationError) {
+                console.warn('Verification code extracted, but auto-opening the matched email failed:', navigationError);
+            }
+
+            const details = [
+                `Code: ${result.code}`,
+                `Folder: ${targetFolderName}`,
+                result.messageDate ? `Date: ${new Date(result.messageDate).toLocaleString()}` : null,
+                result.messageFrom ? `From: ${result.messageFrom}` : null,
+                result.messageSubject ? `Subject: ${result.messageSubject}` : null,
+                result.matchSource ? `Matched in: ${result.matchSource}` : null
+            ]
+                .filter(Boolean)
+                .join('\n');
+
+            await this.alertMethod(details, 'Verification Code', null, 'OK');
+            return result;
+        } catch (error) {
+            console.error('Failed to extract verification code:', error);
+            const details = error && error.details ? error.details : {};
+            const message = details.message || details.error || error.message || 'Failed to extract verification code';
+            await this.alertMethod(message, 'Verification Code', null, 'OK');
+            throw error;
+        } finally {
+            if (button) {
+                button.disabled = false;
+                button.textContent = originalText;
+            }
+        }
+    }
+
     _parseApiError(error) {
         try {
             // If error has response text, try to parse it
@@ -825,6 +885,17 @@ export class EmailEngineClient {
                 font-weight: 500;
                 font-size: 14px;
                 color: #333;
+            }
+
+            .ee-pane-actions {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .ee-pane-button {
+                height: 28px;
+                font-weight: 500;
             }
             
             .ee-folder-tree {
@@ -1633,6 +1704,9 @@ export class EmailEngineClient {
                 <div class="ee-message-list">
                     <div class="ee-pane-header">
                         <span class="ee-pane-title">Messages</span>
+                        <div class="ee-pane-actions">
+                            <button type="button" class="ee-button ee-pane-button" data-action="extract-verification">Extract Code</button>
+                        </div>
                     </div>
                     <div class="ee-empty-state">Select a folder</div>
                 </div>
@@ -1671,9 +1745,27 @@ export class EmailEngineClient {
 
         // Wire up compose modal events
         this.setupComposeModal();
+        this.setupVerificationButton();
 
         // Position compose button correctly
         this.positionComposeButton();
+    }
+
+    setupVerificationButton() {
+        if (typeof document === 'undefined' || !this.container) {
+            return;
+        }
+
+        const button = this.container.querySelector('[data-action="extract-verification"]');
+        if (!button) {
+            return;
+        }
+
+        button.addEventListener('click', () => {
+            this.extractVerificationCode().catch(err => {
+                console.error('Verification code extraction failed:', err);
+            });
+        });
     }
 
     setupComposeModal() {

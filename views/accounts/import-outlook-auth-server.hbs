@@ -1,0 +1,221 @@
+{{> accounts_header}}
+
+<nav aria-label="breadcrumb" class="mt-4 mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/admin/accounts">Accounts</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Batch import Outlook</li>
+    </ol>
+</nav>
+
+{{#if authServerConfigured}}
+<div class="alert alert-info">
+    <strong>Auth server:</strong> <code>{{authServerValue}}</code>
+</div>
+{{else}}
+<div class="alert alert-danger">
+    Authentication server is not configured. Set <code>authServer</code> first before importing Outlook accounts.
+</div>
+{{/if}}
+
+{{#if errors.submit}}
+<div class="alert alert-danger">
+    {{errors.submit}}
+</div>
+{{/if}}
+
+<div class="card mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Import Settings</h6>
+    </div>
+    <div class="card-body">
+        <form method="post" action="/admin/accounts/import/outlook-auth-server">
+            <input type="hidden" name="crumb" value="{{crumb}}">
+
+            <div class="form-row">
+                <div class="form-group col-lg-6">
+                    <label for="app">Outlook OAuth app</label>
+                    <select class="form-control {{#if errors.app}}is-invalid{{/if}}" id="app" name="app" {{#unless authServerConfigured}}disabled{{/unless}}>
+                        {{#each outlookApps}}
+                        <option value="{{id}}" {{#if selected}}selected{{/if}}>{{id}} - {{scopeLabel}} - {{cloudLabel}}</option>
+                        {{/each}}
+                    </select>
+                    {{#if errors.app}}
+                    <div class="invalid-feedback">{{errors.app}}</div>
+                    {{/if}}
+                    <small class="form-text text-muted">Choose the EmailEngine OAuth app that matches the broker scope mode.</small>
+                </div>
+
+                <div class="form-group col-lg-3">
+                    <label for="accountIdPrefix">Account ID prefix</label>
+                    <input type="text" class="form-control {{#if errors.accountIdPrefix}}is-invalid{{/if}}" id="accountIdPrefix" name="accountIdPrefix" value="{{values.accountIdPrefix}}" placeholder="ee:">
+                    {{#if errors.accountIdPrefix}}
+                    <div class="invalid-feedback">{{errors.accountIdPrefix}}</div>
+                    {{/if}}
+                </div>
+
+                <div class="form-group col-lg-3">
+                    <label for="proxy">Proxy</label>
+                    <input type="text" class="form-control {{#if errors.proxy}}is-invalid{{/if}}" id="proxy" name="proxy" value="{{values.proxy}}" placeholder="socks://127.0.0.1:1080">
+                    {{#if errors.proxy}}
+                    <div class="invalid-feedback">{{errors.proxy}}</div>
+                    {{/if}}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="accounts">Accounts</label>
+                <textarea class="form-control text-monospace {{#if errors.accounts}}is-invalid{{/if}}" id="accounts" name="accounts" rows="14" spellcheck="false" placeholder="user@example.com----password----client_id----refresh_token" {{#unless authServerConfigured}}disabled{{/unless}}>{{values.accounts}}</textarea>
+                {{#if errors.accounts}}
+                <div class="invalid-feedback">{{errors.accounts}}</div>
+                {{/if}}
+                <small class="form-text text-muted">
+                    One account per line. Format:
+                    <code>email----password----client_id----refresh_token</code>.
+                    The password segment is preserved for compatibility with the existing Outlook import format.
+                </small>
+            </div>
+
+            <div class="form-row align-items-center">
+                <div class="col-auto">
+                    <div class="custom-control custom-checkbox mb-3">
+                        <input class="custom-control-input" type="checkbox" id="logs" name="logs" value="true" {{#if values.logs}}checked{{/if}}>
+                        <label class="custom-control-label" for="logs">Enable recent logs for imported accounts</label>
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <div class="custom-control custom-checkbox mb-3">
+                        <input class="custom-control-input" type="checkbox" id="dryRun" name="dryRun" value="true" {{#if values.dryRun}}checked{{/if}}>
+                        <label class="custom-control-label" for="dryRun">Validate only, do not create accounts</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap">
+                <button type="submit" class="btn btn-primary btn-icon-split mr-2 mb-2" {{#unless authServerConfigured}}disabled{{/unless}}>
+                    <span class="icon text-white-50">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </span>
+                    <span class="text">Run import</span>
+                </button>
+                <a href="/admin/accounts" class="btn btn-light mb-2">Back to accounts</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{#if result}}
+<div class="card mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Import Result</h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-2 col-6 mb-3">
+                <div class="small text-uppercase text-muted">Total</div>
+                <div class="h4 mb-0">{{formatInteger result.summary.total userLocale}}</div>
+            </div>
+            <div class="col-md-2 col-6 mb-3">
+                <div class="small text-uppercase text-muted">Parsed</div>
+                <div class="h4 mb-0">{{formatInteger result.summary.parsed userLocale}}</div>
+            </div>
+            <div class="col-md-2 col-6 mb-3">
+                <div class="small text-uppercase text-muted">Created</div>
+                <div class="h4 mb-0 text-success">{{formatInteger result.summary.created userLocale}}</div>
+            </div>
+            <div class="col-md-2 col-6 mb-3">
+                <div class="small text-uppercase text-muted">Updated</div>
+                <div class="h4 mb-0 text-info">{{formatInteger result.summary.updated userLocale}}</div>
+            </div>
+            <div class="col-md-2 col-6 mb-3">
+                <div class="small text-uppercase text-muted">Failed</div>
+                <div class="h4 mb-0 {{#if result.summary.failed}}text-danger{{else}}text-success{{/if}}">{{formatInteger result.summary.failed userLocale}}</div>
+            </div>
+            <div class="col-md-2 col-6 mb-3">
+                <div class="small text-uppercase text-muted">Mode</div>
+                <div class="h4 mb-0">{{#if result.dryRun}}Dry run{{else}}Imported{{/if}}</div>
+            </div>
+        </div>
+
+        {{#if result.broker.synced}}
+        <div class="alert alert-success mb-0">
+            Broker sync completed before local account creation.
+        </div>
+        {{else}}
+        <div class="alert alert-secondary mb-0">
+            Broker sync was skipped for this run.
+        </div>
+        {{/if}}
+    </div>
+</div>
+
+{{#if result.results.length}}
+<div class="card mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Imported Accounts</h6>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Line</th>
+                    <th>Account</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each result.results}}
+                <tr>
+                    <td>{{line}}</td>
+                    <td><code>{{account}}</code></td>
+                    <td>{{email}}</td>
+                    <td>{{state}}</td>
+                    <td class="text-nowrap">
+                        {{#if accountUrl}}
+                        <a href="{{accountUrl}}" class="btn btn-sm btn-outline-secondary mr-1">Account</a>
+                        {{/if}}
+                        {{#if mailboxUrl}}
+                        <a href="{{mailboxUrl}}" class="btn btn-sm btn-outline-primary">Mailbox</a>
+                        {{/if}}
+                    </td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+    </div>
+</div>
+{{/if}}
+
+{{#if result.errors.length}}
+<div class="card mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-danger">Errors</h6>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Line</th>
+                    <th>Account</th>
+                    <th>Email</th>
+                    <th>Error</th>
+                    <th>Code</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each result.errors}}
+                <tr>
+                    <td>{{line}}</td>
+                    <td>{{account}}</td>
+                    <td>{{email}}</td>
+                    <td>{{error}}</td>
+                    <td>{{code}}</td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+    </div>
+</div>
+{{/if}}
+{{/if}}
